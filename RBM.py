@@ -26,20 +26,21 @@ class RBM():
 		return [pre_sigmoid, sigmoid(pre_sigmoid)]
 
 	def sample_h_given_v(self, v0_sample):
-		pre_sigmoid_h1, h1_probability = propagate_v2h(v0_sample)
+		pre_sigmoid_h1, h1_probability = self.propagate_v2h(v0_sample)
 		h1_sample = tf.contrib.distributions.Bernoulli(p=h1_probability)
 		return [pre_sigmoid_h1, h1_probability, h1_sample]
 
 	def sample_v_given_h(self, h0_sample):
-		pre_sigmoid_v1, v1_probability = propagate_h2v(h0_sample)
+		pre_sigmoid_v1, v1_probability = self.propagate_h2v(h0_sample)
 		v1_sample = tf.contrib.distributions.Bernoulli(p=v1_probability)
 		return [pre_sigmoid_v1, v1_probability, v1_sample]
 
 	def gibbs_vhv():
-		pass
+		pre_sigmoid_h1, h1_probability, h1_sample = self.sample_h_given_v(v0_sample)
+		pre_sigmoid_v1, v1_probability, v1_sample = self.sample_v_given_h(h1_sample)
 
 	def gibbs_hvh():
-		pass
+		
 
 	def free_energy():
 		pass
