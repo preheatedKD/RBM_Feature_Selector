@@ -35,12 +35,17 @@ class RBM():
 		v1_sample = tf.contrib.distributions.Bernoulli(p=v1_probability)
 		return [pre_sigmoid_v1, v1_probability, v1_sample]
 
-	def gibbs_vhv():
+	def gibbs_vhv(self, v0_sample):
 		pre_sigmoid_h1, h1_probability, h1_sample = self.sample_h_given_v(v0_sample)
 		pre_sigmoid_v1, v1_probability, v1_sample = self.sample_v_given_h(h1_sample)
+		return [pre_sigmoid_h1, h1_probability, h1_sample, 
+				pre_sigmoid_v1, v1_probability, v1_sample]
 
-	def gibbs_hvh():
-		
+	def gibbs_hvh(self, h0_sample):
+		pre_sigmoid_v1, v1_probability, v1_sample = self.sample_v_given_h(h0_sample)
+		pre_sigmoid_h1, h1_probability, h1_sample = self.sample_h_given_v(v1_sample)
+		return [pre_sigmoid_v1, v1_probability, v1_sample,
+				pre_sigmoid_h1, h1_probability, h1_sample]		
 
 	def free_energy():
 		pass
