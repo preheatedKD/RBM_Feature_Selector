@@ -18,12 +18,12 @@ class RBM():
 							name='h_bias')
 
 	def propagate_v2h(self, vis):
-		pre_sigmoid = self.v_bias + self.weights * vis
-		return [pre_sigmoid, sigmoid(pre_sigmoid)]
+		pre_sigmoid = tf.add(self.v_bias,tf.matmul(vis,self.weights))
+		return [pre_sigmoid, tf.sigmoid(pre_sigmoid)]
 
 	def propagate_h2v(self, hid):
-		pre_sigmoid = self.h_bias + self.weights * hid
-		return [pre_sigmoid, sigmoid(pre_sigmoid)]
+		pre_sigmoid = tf.add(self.v_bias,tf.matmul(hid,self.weights))
+		return [pre_sigmoid, tf.sigmoid(pre_sigmoid)]
 
 	def sample_h_given_v(self, v0_sample):
 		pre_sigmoid_h1, h1_probability = self.propagate_v2h(v0_sample)
