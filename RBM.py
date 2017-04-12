@@ -11,10 +11,10 @@ class RBM():
 									stddev=1.0),
 							name='weights')
 		
-		self.v_bias = tf.Variable(tf.zeros([1]),
+		self.v_bias = tf.Variable(tf.zeros([n_visible]),
 							name='v_bias')
 
-		self.h_bias = tf.Variable(tf.zeros([1]),
+		self.h_bias = tf.Variable(tf.zeros([n_hidden]),
 							name='h_bias')
 
 	def propagate_v2h(self, vis):
@@ -22,7 +22,7 @@ class RBM():
 		return [pre_sigmoid, tf.sigmoid(pre_sigmoid)]
 
 	def propagate_h2v(self, hid):
-		pre_sigmoid = tf.add(self.v_bias,tf.matmul(hid,self.weights))
+		pre_sigmoid = tf.add(self.h_bias,tf.matmul(hid,self.weights))
 		return [pre_sigmoid, tf.sigmoid(pre_sigmoid)]
 
 	def sample_h_given_v(self, v0_sample):
@@ -47,6 +47,9 @@ class RBM():
 		return [pre_sigmoid_v1, v1_probability, v1_sample,
 				pre_sigmoid_h1, h1_probability, h1_sample]		
 
-	def free_energy():
-		pass
-		
+	def free_energy(self, v_sample):
+		vBiasTerm = tf.matmul(self.v_bias,v_sample)
+		hWvTerm = tf.reduce_sum(tf.log(1 + tf.exp(1 + tf.add(tf.matmul(self.weights,v_sample),self.h_bias))))
+		return - vBiasTerm - hWvTerm
+
+	def gibbs_sampling_step(self, visible, n_features):
