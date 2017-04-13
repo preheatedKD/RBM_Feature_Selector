@@ -6,6 +6,7 @@ n_visible = 784
 
 class RBM():
 	def __init__(self, n):
+		self.input = tf.placeholder(tf.float32, [None, n_visible])
 		self.weights = tf.Variable(tf.truncated_normal(
 									[n_visible,n_hidden],
 									stddev=1.0),
@@ -52,4 +53,17 @@ class RBM():
 		hWvTerm = tf.reduce_sum(tf.log(1 + tf.exp(1 + tf.add(tf.matmul(self.weights,v_sample),self.h_bias))))
 		return - vBiasTerm - hWvTerm
 
-	def gibbs_sampling_step(self, visible, n_features):
+	def CD_learning(self, lr=0.1, k=1):
+		#Positive phase
+		pre_sigmoid_ph, ph_probability, ph_sample = sample_h_given_v(self.input)
+		chain_start = ph_sample
+		#Negative phase
+		tf.scan(
+			self.gibbs_hvh, 
+			)
+
+def toy_test():
+	pass
+
+if __name__ == '__main__':
+	toy_test()
