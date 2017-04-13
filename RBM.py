@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 
 class RBM():
-	def __init__(self, n_hidden = 20, n_visible = 784):
+	def __init__(self, n_hidden = 20, n_visible = 784, self.gibbs_sampling_steps=5):
 		self.input = tf.placeholder(tf.float32, [None, n_visible])
 		self.weights = tf.Variable(tf.truncated_normal(
 									[n_visible,n_hidden],
@@ -35,6 +35,18 @@ class RBM():
 		v1_sample = tf.contrib.distributions.Bernoulli(p=v1_probability)
 		return [pre_sigmoid_v1, v1_probability, v1_sample]
 
+	def gibbs_step(self, v0_sample):
+		#Visible to Hidden
+		pre_sigmoid_h0, h0_probability, h0_sample = self.sample_h_given_v(v0_sample)
+		#Hidden to Visible
+		pre_sigmoid_v1, v1_probability, v1_sample = self.sample_v_given_h(h0_sample)
+		#Visible to Hidden again
+		pre_sigmoid_h1, h1_probability, h1_sample = self.sample_h_given_v(v1_sample)
+
+		return [h0_probability, h0_sample, 
+				v1_probability, v1_sample,
+				h1_probability, h1_sample]
+
 	def gibbs_vhv(self, v0_sample):
 		pre_sigmoid_h0, h0_probability, h0_sample = self.sample_h_given_v(v0_sample)
 		pre_sigmoid_v1, v1_probability, v1_sample = self.sample_v_given_h(h0_sample)
@@ -52,26 +64,36 @@ class RBM():
 		hWvTerm = tf.reduce_sum(tf.log(1 + tf.exp(1 + tf.add(tf.matmul(self.weights,v_sample),self.h_bias))))
 		return - vBiasTerm - hWvTerm
 
-	def CD_learning(self, lr=0.1, k=1):
-		pre_sigmoid_h0, h0_probability, h0_sample, pre_sigmoid_v1, v1_probability, v1_sample = gibbs_vhv(self.input)
-		pre_sigmoid_h1, h1_probability, h1_sample = sample_h_given_v(v1_sample)
+	def build_model(self, alpha=0.1):
+		h0_probability, h0_sample, 
+		v1_probability, v1_sample,
+		h1_probability, h1_sample = gibbs_step(self.input)
 		
+		nn_input = v1_probability
+
 		#Positive gradient
 		self.w_positive = tf.matmul(tf.transpose(self.input), h0_sample)
+
+		for step in range(self.gibbs_sampling_steps - 1):
+            h0_probability, h0_sample, 
+			v1_probability, v1_sample,
+			h1_probability, h1_sample = self.gibbs_step(nn_input)
+            nn_input = v1_probability
+
 		#Negative gradient
-		self.w_negative = tf.matmul(tf.transpose(v1_sample), h1_sample)
+		self.w_negative = tf.matmul(tf.transpose(v1_probability), h1_probability)
 
-		self.update_w = self.weights - alpha * (self.w_positive - self.w_negative) / (tf.shape(self.input)[0])
-		self.update_vb = self.v_bias - alpha * tf.reduce_mean(self.input - v1_sample, 0)
-		self.update_hb = self.h_bias - alpha * tf.reduce_mean(h0_sample - h1_sample,0)
+		self.update_w = self.weights.assign_add(alpha * (self.w_positive - self.w_negative))
+		self.update_vb = self.v_bias.assign_add(alpha * tf.reduce_mean(self.input - v1_probability, 0))
+		self.update_hb = self.h_bias.assign_add(alpha * tf.reduce_mean(h0_probability - h1_probability,0))
 
-		#Sampling functions
-        _, _, self.h_sample = sample_h_given_v(self.input)
-        _, _, self.v_sample = sample_v_given_h(self.h_sample)
+		self.loss_function = tf.sqrt(tf.reduce_mean(tf.square(self.input - v1_probability)))
+		_ = tf.scalar_summary("cost", self.loss_function)
 
-        #Cost
-        self.err_sum = tf.reduce_mean(tf.square(self.input - self.v_sample))
-		
 if __name__ == '__main__':
 	mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+	RBM = RBM()
+	for epoch in 1000:
+		batch_xs, batch_ys = mnist.train.next_batch(10)
+
 	tf.global_variables_initializer().run()
