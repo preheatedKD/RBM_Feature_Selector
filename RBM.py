@@ -16,9 +16,9 @@ class RBM(object):
 		self.update_hb = tf.Variable(tf.zeros([n_hidden]), name='updates_h_bias')
 		self.update_vb = tf.Variable(tf.zeros([n_visible]), name='updates_v_bias')
 
-		self.new_w = np.zeros([n_visible, n_hidden], np.float32)
-		self.update_hb = np.zeros([n_hidden], np.float32)
-		self.update_vb = np.zeros([n_visible], np.float32)
+		# self.new_w = np.zeros([n_visible, n_hidden], np.float32)
+		# self.update_hb = np.zeros([n_hidden], np.float32)
+		# self.update_vb = np.zeros([n_visible], np.float32)
 
 		init = tf.global_variables_initializer()
 		self.sess = tf.Session()
