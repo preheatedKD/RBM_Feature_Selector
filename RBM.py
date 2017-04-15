@@ -1,12 +1,14 @@
 import numpy as np
 import tensorflow as tf
+from PIL import Image
 from tensorflow.examples.tutorials.mnist import input_data
+from utils import tile_raster_images
 
 class RBM(object):
-	def __init__(self, n_hidden = 20, n_visible = 784, gibbs_sampling_steps=5, alpha=0.1):
+	def __init__(self, n_hidden = 500, n_visible = 784, gibbs_sampling_steps=10, alpha=0.01):
 		self.alpha = alpha
 		self.input = tf.placeholder(tf.float32, [None, n_visible])
-		self.weights = tf.Variable(tf.truncated_normal([n_visible,n_hidden], stddev=1.0), name='weights')
+		self.weights = tf.Variable(tf.truncated_normal([n_visible,n_hidden], stddev=1.0), name='weights_')
 		self.v_bias = tf.Variable(tf.zeros([n_visible]), name='v_bias')
 		self.h_bias = tf.Variable(tf.zeros([n_hidden]),	name='h_bias')
 
@@ -74,31 +76,70 @@ class RBM(object):
 			h0_probability, h0_sample, v1_probability, v1_sample,h1_probability, h1_sample = self.gibbs_step(nn_input)
 			nn_input = v1_probability
 
+		self.h_probability = h1_probability
 		#Negative gradient
 		self.w_negative = tf.matmul(tf.transpose(v1_probability), h1_probability)
 
-		self.update_w = self.weights.assign_add(self.alpha * (self.w_positive - self.w_negative))
+		self.update_w = self.weights.assign_add(self.alpha * (self.w_positive - self.w_negative))#/tf.to_float(tf.shape(self.input)[0]))
 		self.update_vb = self.v_bias.assign_add(self.alpha * tf.reduce_mean(self.input - v1_probability, 0))
 		self.update_hb = self.h_bias.assign_add(self.alpha * tf.reduce_mean(h0_probability - h1_probability,0))
 
 		# with tf.variable_scope('loss'):
 		self.loss_function = tf.sqrt(tf.reduce_mean(tf.square(self.input - v1_probability)))
 
+		self.updates = [self.update_w, self.update_hb, self.update_vb]
+
 	def train(self, train_input):
-		updates = [self.update_w, self.update_hb, self.update_vb]
 		# self.new_w, self.new_hb, self.new_vb = 
-		print(self.sess.run(updates, feed_dict={self.input:train_input}))
+		return self.sess.run(self.updates, feed_dict={self.input:train_input})
+
+	# def cost(self, batch):
+	# 	return self.sess.run(self.loss_function, feed_dict={self.input:batch})
+	def mnist(self, n_hidden=500):
+		self.W = tf.Variable(tf.truncated_normal([n_hidden,10], stddev=1.0), name='weights_mnist')
+		self.b = tf.Variable(tf.zeros([10]))
+
+		self.y_ = tf.placeholder(tf.float32, [None, 10])
+		
+		self.build_model()
+		
+		init = tf.global_variables_initializer()
+		self.sess.run(init)
+
+		y = tf.nn.softmax(tf.matmul(self.h_probability, self.W) + self.b)
+		self.mnist_cross_entropy = tf.reduce_mean(-tf.reduce_sum(self.y_ * tf.log(y), reduction_indices=[1]))
+
+		self.train_step = tf.train.GradientDescentOptimizer(0.5).minimize(self.mnist_cross_entropy)
+		
+	
+	def mnist_train(self, batch_xs, batch_ys):
+		self.sess.run(self.train_step, feed_dict={self.input: batch_xs,self.y_: batch_ys})
+
+	def mnist_test(self, batch_xs, batch_ys):
+		_,probability,_ = self.sample_h_given_v(batch_xs)
+		y = tf.nn.softmax(tf.matmul(self.h_probability, self.W) + self.b)		
+		correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(self.y_, 1))
+		self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+		print(sess.run(self.accuracy, feed_dict={self.input: batch_xs, self.y_: batch_ys}))
 
 if __name__ == '__main__':
 	mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
 	#Models
 	sess = tf.Session()
+	# with tf.device("/cpu:0"):
 	rbm = RBM()
 	rbm.build_model()
-	for _ in range(100):
+	# rbm.mnist()
+	new_w = np.zeros([784, 500], np.float32)
+	for _ in range(100000):
+		print(_)
 		batch_xs, batch_ys = mnist.train.next_batch(100)
-		rbm.train(batch_xs)
-
+		new_w, new_hb, new_vb = rbm.train(batch_xs)
+		# rbm.mnist_train(batch_xs, batch_ys)
+	
+	image = Image.fromarray(tile_raster_images(X=new_w.T,img_shape=(28, 28),tile_shape=(25, 20),tile_spacing=(1, 1)))
+	image.save("rbm_.png")
+	# rbm.mnist_test(mnist.test.images, mnist.test.labels)
 	#Testing
 	# correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
 	# accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
