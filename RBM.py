@@ -68,7 +68,9 @@ class RBM(object):
 	def build_model(self):
 		h0_probability, h0_sample, v1_probability, v1_sample, h1_probability, h1_sample = self.gibbs_step(self.input)
 		nn_input = v1_probability
-
+		h_sample = h0_sample
+		h_probability = h0_probability
+		
 		#Positive gradient
 		self.w_positive = tf.matmul(tf.transpose(self.input), h0_sample)
 
@@ -78,21 +80,21 @@ class RBM(object):
 
 		self.h_probability = h1_probability
 		#Negative gradient
-		self.w_negative = tf.matmul(tf.transpose(v1_probability), h1_probability)
+		self.w_negative = tf.matmul(tf.transpose(v1_sample), h1_sample)
 
 		self.update_w = self.weights.assign_add(self.alpha * (self.w_positive - self.w_negative))#/tf.to_float(tf.shape(self.input)[0]))
 		self.update_vb = self.v_bias.assign_add(self.alpha * tf.reduce_mean(self.input - v1_probability, 0))
-		self.update_hb = self.h_bias.assign_add(self.alpha * tf.reduce_mean(h0_probability - h1_probability,0))
-
+		self.update_hb = self.h_bias.assign_add(self.alpha * tf.reduce_mean(h_probability - h1_probability,0))
+		
 		# with tf.variable_scope('loss'):
-		self.loss_function = tf.sqrt(tf.reduce_mean(tf.square(self.input - v1_probability)))
+		self.RMSE = tf.sqrt(tf.reduce_mean(tf.square(self.input - v1_sample)))
 
 		self.updates = [self.update_w, self.update_hb, self.update_vb]
 
 	def train(self, train_input):
-		# self.new_w, self.new_hb, self.new_vb = 
-		return self.sess.run(self.updates, feed_dict={self.input:train_input})
-
+		n_w, n_hb, n_vb = self.sess.run(self.updates, feed_dict={self.input:train_input})
+		ReconErr = self.sess.run(self.RMSE, feed_dict={self.input:train_input})
+		return  [n_w, n_hb, n_vb, ReconErr]
 	# def cost(self, batch):
 	# 	return self.sess.run(self.loss_function, feed_dict={self.input:batch})
 	def mnist(self, n_hidden=500):
@@ -110,7 +112,7 @@ class RBM(object):
 		self.mnist_cross_entropy = tf.reduce_mean(-tf.reduce_sum(self.y_ * tf.log(y), reduction_indices=[1]))
 
 		self.train_step = tf.train.GradientDescentOptimizer(0.5).minimize(self.mnist_cross_entropy)
-		
+
 	
 	def mnist_train(self, batch_xs, batch_ys):
 		self.sess.run(self.train_step, feed_dict={self.input: batch_xs,self.y_: batch_ys})
@@ -123,27 +125,29 @@ class RBM(object):
 		print(sess.run(self.accuracy, feed_dict={self.input: batch_xs, self.y_: batch_ys}))
 
 if __name__ == '__main__':
+	BATCH = 100
+	Epoch = 20
+
 	mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
-	#Models
 	sess = tf.Session()
-	# with tf.device("/cpu:0"):
 	rbm = RBM()
 	rbm.build_model()
 	# rbm.mnist()
 	new_w = np.zeros([784, 500], np.float32)
-	for _ in range(100000):
-		print(_)
-		batch_xs, batch_ys = mnist.train.next_batch(100)
-		new_w, new_hb, new_vb = rbm.train(batch_xs)
-		# rbm.mnist_train(batch_xs, batch_ys)
 	
-	image = Image.fromarray(tile_raster_images(X=new_w.T,img_shape=(28, 28),tile_shape=(25, 20),tile_spacing=(1, 1)))
-	image.save("rbm_.png")
-	# rbm.mnist_test(mnist.test.images, mnist.test.labels)
-	#Testing
-	# correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
-	# accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-	# print(sess.run(accuracy, feed_dict={x: mnist.test.images, y_: mnist.test.labels}))
+	for num in range(Epoch):
+		for _ in range(len(mnist.train.images)/BATCH):
+			batch_xs, batch_ys = mnist.train.next_batch(BATCH)
+			new_w, new_hb, new_vb, ReconErr = rbm.train(batch_xs)
+			# rbm.mnist_train(batch_xs, batch_ys)
+			print("Epoch: {}, Iteration: {}, Reconstruction Error: {}".format(num,_,ReconErr))
+		image = Image.fromarray(tile_raster_images(X=new_w.T,img_shape=(28, 28),tile_shape=(25, 20),tile_spacing=(1, 1)))
+		image.save("rbm_{}.png".format(num))
+		# rbm.mnist_test(mnist.test.images, mnist.test.labels)
+		#Testing
+		# correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
+		# accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+		# print(sess.run(accuracy, feed_dict={x: mnist.test.images, y_: mnist.test.labels}))
 
 		
 
