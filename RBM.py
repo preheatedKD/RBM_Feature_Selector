@@ -5,7 +5,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 from utils import tile_raster_images
 
 class RBM(object):
-	def __init__(self, n_hidden = 100, n_visible = 784, gibbs_sampling_steps=10000 , alpha=0.001):
+	def __init__(self, n_hidden = 100, n_visible = 784, gibbs_sampling_steps=10 , alpha=0.001):
 		self.alpha = alpha
 		self.input = tf.placeholder(tf.float32, [None, n_visible])
 		self.weights = tf.Variable(tf.truncated_normal([n_visible,n_hidden], stddev=1.0), name='weights_')
@@ -37,11 +37,14 @@ class RBM(object):
 		h0_sample = tf.nn.relu(tf.sign(h0_probability - tf.random_uniform(tf.shape(h0_probability))))
 		return [pre_sigmoid_h0, h0_probability, tf.cast(h0_sample,tf.float32)]
 
-	def sample_v_given_h(self, h0_probability):
-		pre_sigmoid_v1, v1_probability = self.propagate_h2v(h0_probability)
-		# v1_sample = tf.contrib.distributions.Bernoulli(p=v1_probability).sample()
-		v1_sample = tf.nn.relu(tf.sign(v1_probability - tf.random_uniform(tf.shape(v1_probability))))		
-		return [pre_sigmoid_v1, v1_probability, tf.cast(v1_sample,tf.float32)]
+	def sample_v_given_h(self, h0_probability, datatype="binary"):
+		if datatype == "gaussian":
+			pass
+		elif datatype == "binary":
+			pre_sigmoid_v1, v1_probability = self.propagate_h2v(h0_probability)
+			# v1_sample = tf.contrib.distributions.Bernoulli(p=v1_probability).sample()
+			v1_sample = tf.nn.relu(tf.sign(v1_probability - tf.random_uniform(tf.shape(v1_probability))))		
+			return [pre_sigmoid_v1, v1_probability, tf.cast(v1_sample,tf.float32)]
 
 	def gibbs_step(self, h0_probability):
 		#Hidden to Visible
@@ -51,18 +54,6 @@ class RBM(object):
 		
 		return [v1_probability, v1_sample,
 				h1_probability, h1_sample]
-
-	def gibbs_vhv(self, v0_sample):
-		pre_sigmoid_h0, h0_probability, h0_sample = self.sample_h_given_v(v0_sample)
-		pre_sigmoid_v1, v1_probability, v1_sample = self.sample_v_given_h(h0_sample)
-		return [pre_sigmoid_h0, h0_probability, h0_sample, 
-				pre_sigmoid_v1, v1_probability, v1_sample]
-
-	def gibbs_hvh(self, h0_sample):
-		pre_sigmoid_v1, v1_probability, v1_sample = self.sample_v_given_h(h0_sample)
-		pre_sigmoid_h1, h1_probability, h1_sample = self.sample_h_given_v(v1_sample)
-		return [pre_sigmoid_v1, v1_probability, v1_sample,
-				pre_sigmoid_h1, h1_probability, h1_sample]		
 
 	def gibbs_sampling(self, h0_probability):
 		v1_probability = 0.0
@@ -103,6 +94,10 @@ class RBM(object):
 		return  [n_w, n_hb, n_vb, ReconErr]
 	# def cost(self, batch):
 	# 	return self.sess.run(self.loss_function, feed_dict={self.input:batch})
+
+	def save_weights(self):
+		pass
+
 	def mnist(self, n_hidden=500):
 		self.W = tf.Variable(tf.truncated_normal([n_hidden,10], stddev=1.0), name='weights_mnist')
 		self.b = tf.Variable(tf.zeros([10]))
