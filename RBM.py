@@ -5,20 +5,44 @@ from tensorflow.examples.tutorials.mnist import input_data
 from utils import tile_raster_images
 
 class RBM(object):
-	def __init__(self, n_hidden = 100, n_visible = 784, alpha=0.001, gibbs_sampling_steps=10, datatype="binary"):
+	def __init__(self, n_hidden = 100, n_visible = 784, alpha=0.001, gibbs_sampling_steps=10, layer_names=['weight','v_bias','h_bias'], datatype="binary"):
+		self.layer_names = layer_names
 		self.datatype = datatype
+		self.n_visible = n_visible
+		self.n_hidden = n_hidden
 		self.alpha = alpha
+
+		network_weights = self._initialize_weights()
+		self.weights = network_weights
+
 		self.input = tf.placeholder(tf.float32, [None, n_visible])
-		self.weights = tf.Variable(tf.truncated_normal([n_visible,n_hidden], stddev=1.0), name='weights_')
-		self.v_bias = tf.Variable(tf.zeros([n_visible], dtype=tf.float32),  name='v_bias')
-		self.h_bias = tf.Variable(tf.random_uniform([n_hidden], dtype=tf.float32), name='h_bias')
+		self.weights = tf.Variable(tf.truncated_normal([n_visible,n_hidden], stddev=1.0), name=self.layer_names[0])
+		self.v_bias = tf.Variable(tf.zeros([n_visible], dtype=tf.float32),  name=self.layer_names[1])
+		self.h_bias = tf.Variable(tf.random_uniform([n_hidden], dtype=tf.float32), name=self.layer_names[2])
 
 		self.params = [self.weights, self.h_bias, self.v_bias]
 		self.gibbs_sampling_steps = gibbs_sampling_steps
 
-		# self.update_w = tf.Variable(tf.truncated_normal([n_visible,n_hidden],stddev=1.0), name='updates_weights')
-		# self.update_hb = tf.Variable(tf.zeros([n_hidden]), name='updates_h_bias')
-		# self.update_vb = tf.Variable(tf.zeros([n_visible]), name='updates_v_bias')
+		_, h0_probability, h0_sample = self.sample_h_given_v(self.input)
+
+		#1 Step Gibbs Sampling
+		# _, v_probability = self.propagate_h2v(h0_probability)
+		# _, h_probability = self.propagate_v2h(v1_probability)
+
+		v1_probability, h1_probability = self.gibbs_sampling(h0_probability)
+		self.w_positive = tf.matmul(tf.transpose(self.input), h0_sample)		
+		self.w_negative = tf.matmul(tf.transpose(v1_probability), h1_probability)
+
+		self.update_w = self.weights.assign_add(self.alpha * (self.w_positive - self.w_negative))#/tf.to_float(tf.shape(self.input)[0]))
+		self.update_vb = self.v_bias.assign_add(self.alpha * tf.reduce_mean(self.input - v1_probability, 0))
+		self.update_hb = self.h_bias.assign_add(self.alpha * tf.reduce_mean(h1_probability - h0_probability,0))
+		# with tf.variable_scope('loss'):
+		_, self.h_sample_prob, _ = self.sample_h_given_v(self.input)
+		_, _, self.v_sample_prob = self.sample_v_given_h(self.h_sample_prob)
+
+		self.RMSE = tf.sqrt(tf.reduce_mean(tf.square(self.input - self.v_sample_prob))/tf.to_float(tf.shape(self.input)[0]))
+
+		self.updates = [self.update_w, self.update_hb, self.update_vb]
 
 		init = tf.global_variables_initializer()
 		self.sess = tf.Session()
@@ -72,6 +96,15 @@ class RBM(object):
 
 		return [v1_probability, h1_probability]
 
+	def inference(self, vis):
+		return self.sess.run(self.v_sample_prob, feed_dict={self.input:vis})
+
+	def passThrough(self, vis):
+		return self.sess.run(self.h_sample_prob, feed_dict={self.input:vis})
+
+	def passBack(self, hid):
+		return self.sess.run(self.v_sample_prob, feed_dict={self.h_sample_prob:hid})
+
 	def build_model(self):
 		_, h0_probability, h0_sample = self.sample_h_given_v(self.input)
 		
@@ -99,11 +132,35 @@ class RBM(object):
 		n_w, n_hb, n_vb = self.sess.run(self.updates, feed_dict={self.input:train_input})
 		ReconErr = self.sess.run(self.RMSE, feed_dict={self.input:train_input})
 		return  [n_w, n_hb, n_vb, ReconErr]
-	# def cost(self, batch):
-	# 	return self.sess.run(self.loss_function, feed_dict={self.input:batch})
 
-	def save_weights(self):
-		pass
+	def _initialize_weights(self):
+		# These weights are only for storing and loading model for tensorflow Saver.
+		all_weights = dict()
+		all_weights['w'] = tf.Variable(tf.random_normal([self.n_visible, self.n_hidden], stddev=0.01, dtype=tf.float32),
+									   name=self.layer_names[0])
+		all_weights['vb'] = tf.Variable(tf.zeros([self.n_visible], dtype=tf.float32), name=self.layer_names[1])
+		all_weights['hb'] = tf.Variable(tf.random_uniform([self.n_hidden], dtype=tf.float32), name=self.layer_names[2])
+		return all_weights
+
+	def save_weights(self, path):
+		self.sess.run(self.weights['w'].assign(self.weights))
+		self.sess.run(self.weights['vb'].assign(self.v_bias))
+		self.sess.run(self.weights['hb'].assign(self.h_bias))
+		saver = tf.train.Saver({self.layer_names[0]: self.weights['w'],
+								self.layer_names[1]: self.weights['vb'],
+								self.layer_names[2]: self.weights['hb']})
+		save_path = saver.save(self.sess, path)
+
+	def restore_weights(self, path):
+		saver = tf.train.Saver({self.layer_names[0]: self.weights['w'],
+								self.layer_names[1]: self.weights['vb'],
+								self.layer_names[2]: self.weights['hb']})
+
+		saver.restore(self.sess, path)
+
+		self.weights = self.weights['w'].eval(self.sess)
+		self.v_bias = self.weights['vb'].eval(self.sess)
+		self.h_bias = self.weights['hb'].eval(self.sess)
 
 	def mnist(self, n_hidden=500):
 		self.W = tf.Variable(tf.truncated_normal([n_hidden,10], stddev=1.0), name='weights_mnist')
