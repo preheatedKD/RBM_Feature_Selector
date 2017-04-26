@@ -5,7 +5,8 @@ from tensorflow.examples.tutorials.mnist import input_data
 from utils import tile_raster_images
 
 class RBM(object):
-	def __init__(self, n_hidden = 100, n_visible = 784, gibbs_sampling_steps=10 , alpha=0.001):
+	def __init__(self, n_hidden = 100, n_visible = 784, alpha=0.001, gibbs_sampling_steps=10, datatype="binary"):
+		self.datatype = datatype
 		self.alpha = alpha
 		self.input = tf.placeholder(tf.float32, [None, n_visible])
 		self.weights = tf.Variable(tf.truncated_normal([n_visible,n_hidden], stddev=1.0), name='weights_')
@@ -24,6 +25,9 @@ class RBM(object):
 		self.sess.run(init)
 
 	def propagate_v2h(self, vis):
+		if self.datatype == "gaussian":
+			vis = tf.cast(vis, tf.float32)
+			
 		pre_sigmoid = tf.add(self.h_bias,tf.matmul(vis,self.weights))
 		return [pre_sigmoid, tf.sigmoid(pre_sigmoid)]
 
@@ -37,14 +41,17 @@ class RBM(object):
 		h0_sample = tf.nn.relu(tf.sign(h0_probability - tf.random_uniform(tf.shape(h0_probability))))
 		return [pre_sigmoid_h0, h0_probability, tf.cast(h0_sample,tf.float32)]
 
-	def sample_v_given_h(self, h0_probability, datatype="binary"):
-		if datatype == "gaussian":
-			pass
-		elif datatype == "binary":
-			pre_sigmoid_v1, v1_probability = self.propagate_h2v(h0_probability)
+	def sample_v_given_h(self, h0_probability):
+		pre_sigmoid_v1, v1_probability = self.propagate_h2v(h0_probability)
+
+		if self.datatype == "gaussian":
+			v1_sample = tf.contrib.distributions.Normal(mu=v1_probability, sigma=1.).sample()
+		
+		elif self.datatype == "binary":
 			# v1_sample = tf.contrib.distributions.Bernoulli(p=v1_probability).sample()
 			v1_sample = tf.nn.relu(tf.sign(v1_probability - tf.random_uniform(tf.shape(v1_probability))))		
-			return [pre_sigmoid_v1, v1_probability, tf.cast(v1_sample,tf.float32)]
+
+		return [pre_sigmoid_v1, v1_probability, tf.cast(v1_sample,tf.float32)]
 
 	def gibbs_step(self, h0_probability):
 		#Hidden to Visible
@@ -84,7 +91,7 @@ class RBM(object):
 		_, h_sample_prob, _ = self.sample_h_given_v(self.input)
 		_, _, v_sample_prob = self.sample_v_given_h(h_sample_prob)
 
-		self.RMSE = tf.reduce_mean(tf.square(self.input - v_sample_prob))
+		self.RMSE = tf.sqrt(tf.reduce_mean(tf.square(self.input - v_sample_prob))/tf.to_float(tf.shape(self.input)[0]))
 
 		self.updates = [self.update_w, self.update_hb, self.update_vb]
 
