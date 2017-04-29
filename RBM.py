@@ -33,9 +33,10 @@ class RBM(object):
 		self.w_positive = tf.matmul(tf.transpose(self.input), h0_sample)		
 		self.w_negative = tf.matmul(tf.transpose(v1_probability), h1_probability)
 
-		self.update_w = self.weights.assign_add(self.alpha * (self.w_positive - self.w_negative))#/tf.to_float(tf.shape(self.input)[0]))
-		self.update_vb = self.v_bias.assign_add(self.alpha * tf.reduce_mean(self.input - v1_probability, 0))
-		self.update_hb = self.h_bias.assign_add(self.alpha * tf.reduce_mean(h1_probability - h0_probability,0))
+		lamda = 0.001
+		self.update_w = self.weights*(1 - lamda) + self.alpha * (self.w_positive - self.w_negative)#self.weights.assign_add(self.alpha * (self.w_positive - self.w_negative))#/tf.to_float(tf.shape(self.input)[0]))
+		self.update_vb = self.v_bias*(1 - lamda) + self.alpha * tf.reduce_mean(self.input - v1_probability, 0)#self.v_bias.assign_add(self.alpha * tf.reduce_mean(self.input - v1_probability, 0))
+		self.update_hb = self.h_bias*(1 - lamda) + self.alpha * tf.reduce_mean(h1_probability - h0_probability,0)#self.h_bias.assign_add(self.alpha * tf.reduce_mean(h1_probability - h0_probability,0))
 		# with tf.variable_scope('loss'):
 		_, self.h_sample_prob, _ = self.sample_h_given_v(self.input)
 		_, _, self.v_sample_prob = self.sample_v_given_h(self.h_sample_prob)
